@@ -13,6 +13,7 @@ type Config struct {
 	Addr          string
 	AdminPassword string
 	DBPath        string
+	UploadsDir    string
 	LogLevel      slog.Level
 	AdminCookie   string
 }
@@ -24,6 +25,7 @@ func Load() (*Config, error) {
 		Addr:          getString("MEMORIES_ADDR", ":8080"),
 		AdminPassword: strings.TrimSpace(os.Getenv("ADMIN_PASSWORD")),
 		DBPath:        getString("MEMORIES_DB_PATH", "data/memories.db"),
+		UploadsDir:    getString("MEMORIES_UPLOADS_PATH", "public/uploads"),
 		LogLevel:      getLogLevel("MEMORIES_LOG_LEVEL", slog.LevelInfo),
 		AdminCookie:   getString("MEMORIES_ADMIN_COOKIE", "memories_admin"),
 	}

@@ -7,6 +7,7 @@ type AlbumViewData struct {
 	Slug        string
 	Description string
 	UpdatedAt   string
+	Photos      []AlbumPhoto
 }
 
 templ AlbumView(data AlbumViewData) {
@@ -25,9 +26,27 @@ templ AlbumView(data AlbumViewData) {
 		} else {
 			<p class="empty-state">No description yet.</p>
 		}
-		<section>
+		<section class="album-photos">
 			<h2>Photos</h2>
-			<p class="empty-state">Photo management is coming soon.</p>
+			if len(data.Photos) == 0 {
+				<p class="empty-state">No photos yet.</p>
+			} else {
+				<ul class="photo-grid">
+					for _, photo := range data.Photos {
+						<li class="photo-card">
+							<figure>
+								<img src={ photo.URL } alt={ photo.Caption } loading="lazy" />
+								<figcaption>
+									<strong>{ photo.Caption }</strong>
+									if (photo.TakenAt != "") {
+										<span class="photo-meta">Taken { photo.TakenAt }</span>
+									}
+								</figcaption>
+							</figure>
+						</li>
+					}
+				</ul>
+			}
 		</section>
 	}
 }

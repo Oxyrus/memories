@@ -17,8 +17,9 @@ func New(cfg *config.Config, logger *slog.Logger, store storage.Store) *gin.Engi
 
 	r.Use(gin.Recovery())
 	r.Use(middleware.Logging(logger))
+	r.Static("/uploads", cfg.UploadsDir)
 
-	albumHandler := handlers.NewAlbumHandler(logger, store.Albums())
+	albumHandler := handlers.NewAlbumHandler(logger, store.Albums(), store.Photos(), cfg.UploadsDir)
 	authHandler := handlers.NewAuthHandler(logger, cfg.AdminPassword, cfg.AdminCookie)
 
 	protected := r.Group("/")
@@ -28,6 +29,7 @@ func New(cfg *config.Config, logger *slog.Logger, store storage.Store) *gin.Engi
 	protected.POST("/albums", albumHandler.Create)
 	protected.GET("/albums/:slug/edit", albumHandler.Edit)
 	protected.POST("/albums/:slug/edit", albumHandler.Update)
+	protected.POST("/albums/:slug/photos", albumHandler.UploadPhoto)
 	protected.GET("/albums/:slug", albumHandler.View)
 
 	r.GET("/login", authHandler.ShowLogin)

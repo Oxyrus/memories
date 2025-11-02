@@ -2,6 +2,14 @@ package pages
 
 import "github.com/Oxyrus/memories/web/components"
 
+type AlbumPhoto struct {
+	ID       int64
+	URL      string
+	Filename string
+	Caption  string
+	TakenAt  string
+}
+
 type AlbumForm struct {
 	Heading      string
 	Intro        string
@@ -12,6 +20,8 @@ type AlbumForm struct {
 	Errors       map[string]string
 	SubmitLabel  string
 	SlugEditable bool
+	UploadAction string
+	Photos       []AlbumPhoto
 }
 
 templ albumFormPage(form AlbumForm) {
@@ -20,6 +30,7 @@ templ albumFormPage(form AlbumForm) {
 			<h1>{ form.Heading }</h1>
 			<p>{ form.Intro }</p>
 		</header>
+
 		<form method="post" action={ form.Action }>
 			<label>
 				Title
@@ -28,9 +39,10 @@ templ albumFormPage(form AlbumForm) {
 					<p class="form-error">{ form.Errors["title"] }</p>
 				}
 			</label>
+
 			<label>
 				Slug
-				if form.SlugEditable {
+				if (form.SlugEditable) {
 					<input type="text" name="slug" value={ form.Slug } placeholder="auto-generated-from-title" />
 					<p class="form-help">Leave blank to generate a slug from the title. Only letters, numbers, and hyphens are allowed.</p>
 				} else {
@@ -41,13 +53,61 @@ templ albumFormPage(form AlbumForm) {
 					<p class="form-error">{ form.Errors["slug"] }</p>
 				}
 			</label>
+
 			<label>
 				Description
 				<textarea name="description" rows="3">{ form.Description }</textarea>
 			</label>
+
 			<button type="submit">{ form.SubmitLabel }</button>
 			<a class="button-secondary" href="/albums">Cancel</a>
 		</form>
+
+		if (!form.SlugEditable) {
+			<section class="album-photos">
+				<h2>Manage photos</h2>
+
+				<form class="photo-upload" method="post" action={ form.UploadAction } enctype="multipart/form-data">
+					<label>
+						Photo
+						<input type="file" name="photo" accept="image/*" required />
+					</label>
+					<label>
+						Caption
+						<input type="text" name="caption" />
+					</label>
+					<label>
+						Taken at
+						<input type="datetime-local" name="taken_at" />
+					</label>
+					<button type="submit">Upload photo</button>
+				</form>
+
+				if (len(form.Photos) == 0) {
+					<p class="empty-state">No photos yet.</p>
+				} else {
+					<ul class="photo-grid">
+						for _, photo := range form.Photos {
+							<li class="photo-card">
+								<figure>
+									<img src={ photo.URL } alt={ photo.Caption } loading="lazy" />
+									<figcaption>
+										if (photo.Caption != "") {
+											<strong>{ photo.Caption }</strong>
+										} else {
+											<strong>{ photo.Filename }</strong>
+										}
+										if (photo.TakenAt != "") {
+											<span class="photo-meta">Taken { photo.TakenAt }</span>
+										}
+									</figcaption>
+								</figure>
+							</li>
+						}
+					</ul>
+				}
+			</section>
+		}
 	}
 }
 

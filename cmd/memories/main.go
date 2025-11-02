@@ -32,6 +32,11 @@ func main() {
 		}
 	}()
 
+	if err := os.MkdirAll(cfg.UploadsDir, 0o755); err != nil {
+		logger.Error("failed to ensure uploads directory", "path", cfg.UploadsDir, "error", err)
+		os.Exit(1)
+	}
+
 	logger.Info("starting server", "addr", cfg.Addr)
 
 	r := router.New(cfg, logger, store)

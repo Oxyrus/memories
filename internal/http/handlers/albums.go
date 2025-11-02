@@ -1,10 +1,15 @@
 package handlers
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
+	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -18,16 +23,22 @@ import (
 )
 
 type AlbumHandler struct {
-	logger *slog.Logger
-	albums storage.Albums
+	logger     *slog.Logger
+	albums     storage.Albums
+	photos     storage.Photos
+	uploadsDir string
 }
 
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 
-func NewAlbumHandler(logger *slog.Logger, albums storage.Albums) *AlbumHandler {
+const formDateTimeLayout = "2006-01-02T15:04"
+
+func NewAlbumHandler(logger *slog.Logger, albums storage.Albums, photos storage.Photos, uploadsDir string) *AlbumHandler {
 	return &AlbumHandler{
-		logger: logger,
-		albums: albums,
+		logger:     logger,
+		albums:     albums,
+		photos:     photos,
+		uploadsDir: uploadsDir,
 	}
 }
 
@@ -80,6 +91,18 @@ func (h *AlbumHandler) Edit(c *gin.Context) {
 		return
 	}
 
+	photoRecords, err := h.photos.ListByAlbum(ctx, album.ID)
+	if err != nil {
+		h.logger.Error("failed to load album photos", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album photos")
+		return
+	}
+
+	photos := make([]pages.AlbumPhoto, 0, len(photoRecords))
+	for _, photo := range photoRecords {
+		photos = append(photos, toAlbumPhoto(photo))
+	}
+
 	form := pages.AlbumForm{
 		Heading:      "Edit album",
 		Intro:        "Update the album details below.",
@@ -90,6 +113,8 @@ func (h *AlbumHandler) Edit(c *gin.Context) {
 		Description:  album.Description,
 		Errors:       map[string]string{},
 		SlugEditable: false,
+		UploadAction: fmt.Sprintf("/albums/%s/photos", album.Slug),
+		Photos:       photos,
 	}
 
 	render.HTML(c, http.StatusOK, pages.AlbumEdit(form))
@@ -114,11 +139,24 @@ func (h *AlbumHandler) View(c *gin.Context) {
 		return
 	}
 
+	photoRecords, err := h.photos.ListByAlbum(ctx, album.ID)
+	if err != nil {
+		h.logger.Error("failed to load album photos", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album photos")
+		return
+	}
+
+	viewPhotos := make([]pages.AlbumPhoto, 0, len(photoRecords))
+	for _, photo := range photoRecords {
+		viewPhotos = append(viewPhotos, toAlbumPhoto(photo))
+	}
+
 	data := pages.AlbumViewData{
 		Title:       album.Title,
 		Slug:        album.Slug,
 		Description: album.Description,
 		UpdatedAt:   formatTimestamp(album.UpdatedAt),
+		Photos:      viewPhotos,
 	}
 
 	render.HTML(c, http.StatusOK, pages.AlbumView(data))
@@ -252,6 +290,86 @@ func (h *AlbumHandler) Update(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/albums/%s", updated.Slug))
 }
 
+func (h *AlbumHandler) UploadPhoto(c *gin.Context) {
+	ctx := c.Request.Context()
+	slug := strings.TrimSpace(c.Param("slug"))
+	if slug == "" {
+		c.String(http.StatusNotFound, "album not found")
+		return
+	}
+
+	album, err := h.albums.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+
+		h.logger.Error("failed to load album for photo upload", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album")
+		return
+	}
+
+	fileHeader, err := c.FormFile("photo")
+	if err != nil {
+		c.String(http.StatusBadRequest, "photo file is required")
+		return
+	}
+
+	filename, err := generatePhotoFilename(fileHeader.Filename)
+	if err != nil {
+		h.logger.Error("failed to generate photo filename", "error", err)
+		c.String(http.StatusInternalServerError, "failed to save photo")
+		return
+	}
+
+	albumDir := filepath.Join(h.uploadsDir, album.Slug)
+	if err := os.MkdirAll(albumDir, 0o755); err != nil {
+		h.logger.Error("failed to ensure album upload directory", "dir", albumDir, "error", err)
+		c.String(http.StatusInternalServerError, "failed to save photo")
+		return
+	}
+
+	diskPath := filepath.Join(albumDir, filename)
+	if err := c.SaveUploadedFile(fileHeader, diskPath); err != nil {
+		h.logger.Error("failed to save uploaded file", "path", diskPath, "error", err)
+		c.String(http.StatusInternalServerError, "failed to save photo")
+		return
+	}
+
+	caption := strings.TrimSpace(c.PostForm("caption"))
+	takenAtValue := strings.TrimSpace(c.PostForm("taken_at"))
+	var takenAt *time.Time
+	if takenAtValue != "" {
+		parsed, parseErr := time.Parse(formDateTimeLayout, takenAtValue)
+		if parseErr != nil {
+			_ = os.Remove(diskPath)
+			c.String(http.StatusBadRequest, "invalid taken_at format")
+			return
+		}
+		utc := parsed.UTC()
+		takenAt = &utc
+	}
+
+	storedPath := path.Join(album.Slug, filename)
+
+	_, err = h.photos.Create(ctx, storage.PhotoCreate{
+		AlbumID:  album.ID,
+		Filename: storedPath,
+		Caption:  caption,
+		TakenAt:  takenAt,
+	})
+	if err != nil {
+		_ = os.Remove(diskPath)
+		h.logger.Error("failed to persist photo metadata", "albumID", album.ID, "error", err)
+		c.String(http.StatusInternalServerError, "failed to save photo")
+		return
+	}
+
+	h.logger.Info("photo uploaded", "albumID", album.ID, "slug", album.Slug, "filename", storedPath)
+	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/albums/%s/edit", album.Slug))
+}
+
 func toAlbumListItem(album storage.Album) pages.AlbumListItem {
 	meta := ""
 	if ts := formatTimestamp(album.UpdatedAt); ts != "" {
@@ -264,6 +382,23 @@ func toAlbumListItem(album storage.Album) pages.AlbumListItem {
 		Href:        fmt.Sprintf("/albums/%s", album.Slug),
 		Meta:        meta,
 	}
+}
+
+func toAlbumPhoto(photo storage.Photo) pages.AlbumPhoto {
+	caption := strings.TrimSpace(photo.Caption)
+	if caption == "" {
+		caption = path.Base(strings.ReplaceAll(photo.Filename, "\\", "/"))
+	}
+	item := pages.AlbumPhoto{
+		ID:       photo.ID,
+		Filename: path.Base(strings.ReplaceAll(photo.Filename, "\\", "/")),
+		Caption:  caption,
+		URL:      photoURL(photo.Filename),
+	}
+	if photo.TakenAt != nil {
+		item.TakenAt = formatTimestamp(*photo.TakenAt)
+	}
+	return item
 }
 
 func slugify(value string) string {
@@ -308,4 +443,21 @@ func formatTimestamp(t time.Time) string {
 		return ""
 	}
 	return t.UTC().Format("Jan 2, 2006 15:04 MST")
+}
+
+func generatePhotoFilename(original string) (string, error) {
+	ext := strings.ToLower(filepath.Ext(original))
+	const tokenSize = 12
+	buf := make([]byte, tokenSize)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	token := hex.EncodeToString(buf)
+	timestamp := time.Now().UTC().Format("20060102150405")
+	return fmt.Sprintf("%s-%s%s", timestamp, token, ext), nil
+}
+
+func photoURL(rel string) string {
+	clean := strings.TrimPrefix(path.Clean("/"+strings.ReplaceAll(rel, "\\", "/")), "/")
+	return "/uploads/" + clean
 }

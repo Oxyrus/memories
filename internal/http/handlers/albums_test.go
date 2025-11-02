@@ -1,6 +1,7 @@
 package handlers_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -11,6 +12,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"mime/multipart"
+	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 
@@ -41,7 +46,8 @@ func TestAlbumHandlerListSuccess(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 
 	handler.List(ctx)
 
@@ -66,8 +72,8 @@ func TestAlbumHandlerListError(t *testing.T) {
 	ctx.Request = req
 
 	albums := &stubAlbums{listErr: errors.New("boom")}
-
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.List(ctx)
 
 	if rec.Code != http.StatusInternalServerError {
@@ -85,7 +91,8 @@ func TestAlbumHandlerNew(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/albums/new", nil)
 	ctx.Request = req
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), &stubAlbums{})
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, &stubAlbums{}, photos, t.TempDir())
 	handler.New(ctx)
 
 	if rec.Code != http.StatusOK {
@@ -117,7 +124,8 @@ func TestAlbumHandlerCreateSuccess(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.Create(ctx)
 	ctx.Writer.WriteHeaderNow()
 
@@ -148,7 +156,8 @@ func TestAlbumHandlerCreateValidationError(t *testing.T) {
 	ctx.Request = req
 
 	albums := &stubAlbums{}
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.Create(ctx)
 
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -179,8 +188,9 @@ func TestAlbumHandlerCreateConflict(t *testing.T) {
 	ctx.Request = req
 
 	albums := &stubAlbums{createErr: storage.ErrConflict}
+	photos := &stubPhotos{}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.Create(ctx)
 
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -214,8 +224,23 @@ func TestAlbumHandlerViewSuccess(t *testing.T) {
 			},
 		},
 	}
-
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{
+		listByAlbum: map[int64][]storage.Photo{
+			1: {
+				{
+					ID:       10,
+					AlbumID:  1,
+					Filename: "summer-roadtrip/photo.jpg",
+					Caption:  "Sunset",
+					TakenAt: func() *time.Time {
+						v := time.Date(2025, 2, 14, 18, 0, 0, 0, time.UTC)
+						return &v
+					}(),
+				},
+			},
+		},
+	}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.View(ctx)
 
 	if rec.Code != http.StatusOK {
@@ -228,6 +253,12 @@ func TestAlbumHandlerViewSuccess(t *testing.T) {
 	if !strings.Contains(body, "/albums/summer-roadtrip/edit") {
 		t.Fatalf("expected edit link in body, got %s", body)
 	}
+	if !strings.Contains(body, "/uploads/summer-roadtrip/photo.jpg") {
+		t.Fatalf("expected photo url in body, got %s", body)
+	}
+	if !strings.Contains(body, "Taken Feb 14, 2025 18:00 UTC") {
+		t.Fatalf("expected taken at text, got %s", body)
+	}
 }
 
 func TestAlbumHandlerViewNotFound(t *testing.T) {
@@ -239,12 +270,58 @@ func TestAlbumHandlerViewNotFound(t *testing.T) {
 	ctx.Params = gin.Params{{Key: "slug", Value: "missing"}}
 
 	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
-
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
 	handler.View(ctx)
 
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerEditPhotoListError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/summer-roadtrip/edit", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {ID: 1, Slug: "summer-roadtrip", Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{listErr: errors.New("boom")}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
+
+	handler.Edit(ctx)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerViewPhotoListError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/summer-roadtrip", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {ID: 1, Slug: "summer-roadtrip", Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{listErr: errors.New("boom")}
+	handler := newAlbumHandler(t, albums, photos, t.TempDir())
+
+	handler.View(ctx)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
 	}
 }
 
@@ -267,7 +344,7 @@ func TestAlbumHandlerEditSuccess(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Edit(ctx)
 
 	if rec.Code != http.StatusOK {
@@ -292,7 +369,7 @@ func TestAlbumHandlerEditNotFound(t *testing.T) {
 
 	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Edit(ctx)
 
 	if rec.Code != http.StatusNotFound {
@@ -329,7 +406,7 @@ func TestAlbumHandlerUpdateSuccess(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Update(ctx)
 	ctx.Writer.WriteHeaderNow()
 
@@ -372,7 +449,7 @@ func TestAlbumHandlerUpdateValidationError(t *testing.T) {
 		},
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Update(ctx)
 
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -402,7 +479,7 @@ func TestAlbumHandlerUpdateLookupNotFound(t *testing.T) {
 
 	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Update(ctx)
 
 	if rec.Code != http.StatusNotFound {
@@ -432,7 +509,7 @@ func TestAlbumHandlerUpdateMissingAfterLookup(t *testing.T) {
 		updateErr: storage.ErrNotFound,
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Update(ctx)
 
 	if rec.Code != http.StatusNotFound {
@@ -462,7 +539,7 @@ func TestAlbumHandlerUpdateError(t *testing.T) {
 		updateErr: errors.New("boom"),
 	}
 
-	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler := newAlbumHandler(t, albums, &stubPhotos{}, t.TempDir())
 	handler.Update(ctx)
 
 	if rec.Code != http.StatusInternalServerError {
@@ -470,6 +547,264 @@ func TestAlbumHandlerUpdateError(t *testing.T) {
 	}
 	if !albums.updateCalled {
 		t.Fatalf("expected Update to be called")
+	}
+}
+
+func TestAlbumHandlerUploadPhotoSuccess(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	slug := "summer-roadtrip"
+	uploadsDir := t.TempDir()
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			slug: {ID: 1, Slug: slug, Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, uploadsDir)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	fileWriter, err := writer.CreateFormFile("photo", "sunset.jpg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("fake image")); err != nil {
+		t.Fatalf("write photo bytes: %v", err)
+	}
+	if err := writer.WriteField("caption", "Sunset"); err != nil {
+		t.Fatalf("write caption: %v", err)
+	}
+	if err := writer.WriteField("taken_at", "2025-02-14T18:00"); err != nil {
+		t.Fatalf("write taken_at: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/"+slug+"/photos", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+
+	handler.UploadPhoto(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect status, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "/albums/"+slug+"/edit" {
+		t.Fatalf("expected redirect to edit page, got %q", location)
+	}
+	if !photos.createCalled {
+		t.Fatalf("expected photo Create to be called")
+	}
+	if photos.lastCreate.AlbumID != 1 {
+		t.Fatalf("expected AlbumID 1, got %d", photos.lastCreate.AlbumID)
+	}
+	if photos.lastCreate.Caption != "Sunset" {
+		t.Fatalf("expected caption 'Sunset', got %q", photos.lastCreate.Caption)
+	}
+	expectedTime := time.Date(2025, 2, 14, 18, 0, 0, 0, time.UTC)
+	if photos.lastCreate.TakenAt == nil || !photos.lastCreate.TakenAt.Equal(expectedTime) {
+		t.Fatalf("expected taken_at %v, got %v", expectedTime, photos.lastCreate.TakenAt)
+	}
+	if photos.lastCreate.Filename == "" {
+		t.Fatalf("expected filename to be set")
+	}
+	if !strings.HasPrefix(photos.lastCreate.Filename, slug+"/") {
+		t.Fatalf("expected filename to be namespaced under slug, got %q", photos.lastCreate.Filename)
+	}
+	diskPath := filepath.Join(uploadsDir, photos.lastCreate.Filename)
+	if _, err := os.Stat(diskPath); err != nil {
+		t.Fatalf("expected photo on disk at %s: %v", diskPath, err)
+	}
+}
+
+func TestAlbumHandlerUploadPhotoMissingFile(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	slug := "summer-roadtrip"
+	uploadsDir := t.TempDir()
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			slug: {ID: 1, Slug: slug, Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, uploadsDir)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	if err := writer.WriteField("caption", "Sunset"); err != nil {
+		t.Fatalf("write caption: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/"+slug+"/photos", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+
+	handler.UploadPhoto(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+	if photos.createCalled {
+		t.Fatalf("photo Create should not be called")
+	}
+	assertAlbumDirEmpty(t, uploadsDir, slug)
+}
+
+func TestAlbumHandlerUploadPhotoInvalidTakenAt(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	slug := "summer-roadtrip"
+	uploadsDir := t.TempDir()
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			slug: {ID: 1, Slug: slug, Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, uploadsDir)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	fileWriter, err := writer.CreateFormFile("photo", "sunset.jpg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("fake image")); err != nil {
+		t.Fatalf("write photo bytes: %v", err)
+	}
+	if err := writer.WriteField("taken_at", "invalid"); err != nil {
+		t.Fatalf("write taken_at: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/"+slug+"/photos", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+
+	handler.UploadPhoto(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", rec.Code)
+	}
+	if photos.createCalled {
+		t.Fatalf("photo Create should not be called")
+	}
+	assertAlbumDirEmpty(t, uploadsDir, slug)
+}
+
+func TestAlbumHandlerUploadPhotoCreateError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	slug := "summer-roadtrip"
+	uploadsDir := t.TempDir()
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			slug: {ID: 1, Slug: slug, Title: "Summer Roadtrip"},
+		},
+	}
+	photos := &stubPhotos{createErr: errors.New("boom")}
+	handler := newAlbumHandler(t, albums, photos, uploadsDir)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	fileWriter, err := writer.CreateFormFile("photo", "sunset.jpg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("fake image")); err != nil {
+		t.Fatalf("write photo bytes: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/"+slug+"/photos", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+
+	handler.UploadPhoto(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+	if !photos.createCalled {
+		t.Fatalf("expected photo Create to be called")
+	}
+	assertAlbumDirEmpty(t, uploadsDir, slug)
+}
+
+func TestAlbumHandlerUploadPhotoAlbumNotFound(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	slug := "missing"
+	uploadsDir := t.TempDir()
+	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
+	photos := &stubPhotos{}
+	handler := newAlbumHandler(t, albums, photos, uploadsDir)
+
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	fileWriter, err := writer.CreateFormFile("photo", "sunset.jpg")
+	if err != nil {
+		t.Fatalf("create form file: %v", err)
+	}
+	if _, err := fileWriter.Write([]byte("fake image")); err != nil {
+		t.Fatalf("write photo bytes: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close writer: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/"+slug+"/photos", body)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: slug}}
+
+	handler.UploadPhoto(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+	if photos.createCalled {
+		t.Fatalf("photo Create should not be called")
+	}
+	assertAlbumDirEmpty(t, uploadsDir, slug)
+}
+
+func assertAlbumDirEmpty(t *testing.T, baseDir, slug string) {
+	t.Helper()
+	albumDir := filepath.Join(baseDir, slug)
+	entries, err := os.ReadDir(albumDir)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return
+		}
+		t.Fatalf("read album dir: %v", err)
+	}
+	if len(entries) > 0 {
+		t.Fatalf("expected album dir %s to be empty, found %d entries", albumDir, len(entries))
 	}
 }
 
@@ -553,4 +888,45 @@ func (s *stubAlbums) ClearCoverPhoto(context.Context, int64) error {
 
 func newTestLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+}
+
+type stubPhotos struct {
+	listByAlbum  map[int64][]storage.Photo
+	listErr      error
+	createResp   storage.Photo
+	createErr    error
+	createCalled bool
+	lastCreate   storage.PhotoCreate
+}
+
+func (s *stubPhotos) Create(_ context.Context, input storage.PhotoCreate) (storage.Photo, error) {
+	s.createCalled = true
+	s.lastCreate = input
+	if s.createErr != nil {
+		return storage.Photo{}, s.createErr
+	}
+	return s.createResp, nil
+}
+
+func (s *stubPhotos) GetByID(context.Context, int64) (storage.Photo, error) {
+	panic("unexpected call to GetByID")
+}
+
+func (s *stubPhotos) ListByAlbum(_ context.Context, albumID int64) ([]storage.Photo, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	if s.listByAlbum == nil {
+		return nil, nil
+	}
+	return append([]storage.Photo(nil), s.listByAlbum[albumID]...), nil
+}
+
+func (s *stubPhotos) Delete(context.Context, int64) error {
+	panic("unexpected call to Delete")
+}
+
+func newAlbumHandler(t *testing.T, albums storage.Albums, photos storage.Photos, uploadsDir string) *handlers.AlbumHandler {
+	t.Helper()
+	return handlers.NewAlbumHandler(newTestLogger(), albums, photos, uploadsDir)
 }
