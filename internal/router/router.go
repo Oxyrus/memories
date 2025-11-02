@@ -32,6 +32,7 @@ func New(cfg *config.Config, logger *slog.Logger, store storage.Store) *gin.Engi
 	protected.POST("/albums/:slug/photos", albumHandler.UploadPhoto)
 	protected.GET("/albums/:slug", albumHandler.View)
 
+	r.GET("/a/:slug", albumHandler.Public)
 	r.GET("/login", authHandler.ShowLogin)
 	r.POST("/login", authHandler.SubmitLogin)
 

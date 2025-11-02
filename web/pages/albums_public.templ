@@ -1,0 +1,129 @@
+package pages
+
+import (
+	"fmt"
+
+	"github.com/Oxyrus/memories/web/components"
+)
+
+type PublicAlbumViewData struct {
+	Title       string
+	Description string
+	Hero        AlbumPhoto
+	Photos      []AlbumPhoto
+}
+
+templ AlbumPublicView(data PublicAlbumViewData) {
+	@components.MainLayout(data.Title) {
+		<section class="public-album">
+			if len(data.Photos) == 0 {
+				<p class="empty-state">No photos yet.</p>
+			} else {
+				<div class="public-album__stage">
+					<figure class="album-hero" data-hero>
+						<img data-hero-image src={ data.Hero.URL } alt={ heroAlt(data.Hero) } />
+						<figcaption class="album-hero__details">
+							<h2 data-hero-caption>{ displayCaption(data.Hero) }</h2>
+							<div class="album-hero__meta">
+								<span data-hero-index>Photo 1 of { len(data.Photos) }</span>
+								if (data.Hero.TakenAt != "") {
+									<span data-hero-meta>{ data.Hero.TakenAt }</span>
+								} else {
+									<span data-hero-meta hidden></span>
+								}
+							</div>
+						</figcaption>
+					</figure>
+				</div>
+
+				if len(data.Photos) > 1 {
+					<section class="album-carousel" aria-label="Album thumbnails">
+						<div class="album-carousel__track">
+							for idx, photo := range data.Photos {
+								<button
+									type="button"
+									class="album-carousel__thumb"
+									data-thumb
+									data-photo-src={ photo.URL }
+									data-photo-alt={ heroAlt(photo) }
+									data-caption={ displayCaption(photo) }
+									data-fallback={ photo.Filename }
+									data-meta={ photo.TakenAt }
+									data-position={ fmt.Sprintf("Photo %d of %d", idx+1, len(data.Photos)) }
+									aria-label={ fmt.Sprintf("View %s", displayCaption(photo)) }
+								>
+									<img src={ photo.URL } alt={ heroAlt(photo) } loading="lazy" />
+								</button>
+							}
+						</div>
+					</section>
+				}
+
+				@templ.Raw(`<script>
+document.addEventListener("DOMContentLoaded", function () {
+  const heroImage = document.querySelector("[data-hero-image]");
+  const heroCaption = document.querySelector("[data-hero-caption]");
+  const heroMeta = document.querySelector("[data-hero-meta]");
+  const heroIndex = document.querySelector("[data-hero-index]");
+  const thumbButtons = document.querySelectorAll("[data-thumb]");
+  if (!heroImage || thumbButtons.length === 0) {
+    return;
+  }
+
+  thumbButtons.forEach(function (button, index) {
+    if (index === 0) {
+      button.classList.add("is-active");
+    }
+    button.addEventListener("click", function () {
+      thumbButtons.forEach(function (btn) {
+        btn.classList.remove("is-active");
+      });
+      button.classList.add("is-active");
+
+      const photoSrc = button.getAttribute("data-photo-src");
+      const photoAlt = button.getAttribute("data-photo-alt") || "";
+      const caption = button.getAttribute("data-caption") || button.getAttribute("data-fallback") || "";
+      const meta = button.getAttribute("data-meta") || "";
+      const position = button.getAttribute("data-position") || "";
+
+      heroImage.setAttribute("src", photoSrc);
+      heroImage.setAttribute("alt", photoAlt);
+      heroCaption.textContent = caption;
+      if (position !== "") {
+        heroIndex.textContent = position;
+      }
+      if (meta !== "") {
+        heroMeta.textContent = meta;
+        heroMeta.removeAttribute("hidden");
+      } else {
+        heroMeta.textContent = "";
+        heroMeta.setAttribute("hidden", "");
+      }
+    });
+  });
+});
+</script>`)
+			}
+		</section>
+	}
+}
+
+func displayCaption(photo AlbumPhoto) string {
+	if photo.Caption != "" {
+		return photo.Caption
+	}
+	if photo.Filename != "" {
+		return photo.Filename
+	}
+	return "Untitled photo"
+}
+
+func heroAlt(photo AlbumPhoto) string {
+	if photo.Caption != "" {
+		return photo.Caption
+	}
+	if photo.Filename != "" {
+		return photo.Filename
+	}
+	return "Album photo"
+}

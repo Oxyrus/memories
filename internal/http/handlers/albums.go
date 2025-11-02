@@ -162,6 +162,52 @@ func (h *AlbumHandler) View(c *gin.Context) {
 	render.HTML(c, http.StatusOK, pages.AlbumView(data))
 }
 
+func (h *AlbumHandler) Public(c *gin.Context) {
+	ctx := c.Request.Context()
+	slug := strings.TrimSpace(c.Param("slug"))
+	if slug == "" {
+		c.String(http.StatusNotFound, "album not found")
+		return
+	}
+
+	album, err := h.albums.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+		h.logger.Error("failed to load album", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album")
+		return
+	}
+
+	photoRecords, err := h.photos.ListByAlbum(ctx, album.ID)
+	if err != nil {
+		h.logger.Error("failed to load album photos", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album photos")
+		return
+	}
+
+	photos := make([]pages.AlbumPhoto, 0, len(photoRecords))
+	for _, photo := range photoRecords {
+		photos = append(photos, toAlbumPhoto(photo))
+	}
+
+	var hero pages.AlbumPhoto
+	if len(photos) > 0 {
+		hero = photos[0]
+	}
+
+	data := pages.PublicAlbumViewData{
+		Title:       album.Title,
+		Description: album.Description,
+		Hero:        hero,
+		Photos:      photos,
+	}
+
+	render.HTML(c, http.StatusOK, pages.AlbumPublicView(data))
+}
+
 func (h *AlbumHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
