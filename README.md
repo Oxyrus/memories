@@ -1,58 +1,84 @@
 # Memories
 
-Server-rendered photo album manager built with Go, Gin, and [templ](https://templ.guide/). The project is organised as a Go module rooted at the repository root (`github.com/Oxyrus/memories`) and follows the usual Go convention of placing binaries in `cmd/`, internal-only packages in `internal/`, and shared components under `pkg/`.
+Server-rendered photo album manager built with Go, Gin, and [templ](https://templ.guide/). It lets you curate private albums, upload photos, and share a minimalist public gallery per album.
+
+## Features
+
+- **SQLite-backed storage** – albums and photos are stored in a single SQLite database (`data/memories.db`). Tables are created on demand by the storage layer; no external migrations are required yet.
+- **Photo uploads with sanitisation** – photos are uploaded to `public/uploads/<album-slug>/`. JPEG uploads are re-encoded on the server with EXIF data (including GPS coordinates) stripped and orientation applied so files are safe to share.
+- **Admin workflow** – authenticated admins can list, create, edit, and upload photos for albums under `/albums`. Logins set a 14-day admin cookie.
+- **Public sharing** – every album is viewable at `/a/{slug}` with a full-bleed hero image, thumbnail carousel, and fullscreen viewer.
+- **templ-powered UI** – layout and pages are authored with templ components (`web/components` and `web/pages`), keeping markup and styling alongside Go logic.
 
 ## Prerequisites
 
-- Go 1.25.3 (matches the version pinned in `go.mod`).
-- The templ CLI (`v0.3.960` or later) installed locally. Use `go install github.com/a-h/templ/cmd/templ@v0.3.960` and ensure `$GOPATH/bin` (or `$HOME/go/bin`) is on your `PATH`.
+- Go 1.25.3 (matches `go.mod`).
+- templ CLI `v0.3.960` or later: `go install github.com/a-h/templ/cmd/templ@v0.3.960`.
+
+## Configuration
+
+Environment variables (via `.env` or shell) control runtime behaviour:
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `ADMIN_PASSWORD` | Password required to log in | _required_ |
+| `MEMORIES_ADDR` | Listen address | `:8080` |
+| `MEMORIES_DB_PATH` | SQLite database path | `data/memories.db` |
+| `MEMORIES_UPLOADS_PATH` | Directory for uploaded photos | `public/uploads` |
+| `MEMORIES_LOG_LEVEL` | `debug`, `info`, `warn`, `error` | `info` |
+| `MEMORIES_ADMIN_COOKIE` | Cookie name for admin auth | `memories_admin` |
+
+Ensure the uploads directory exists and is writable by the process (`make run` will create it as needed).
 
 ## Development Workflow
 
 ### Makefile Targets
 
-A repo-level `Makefile` provides the common build and test commands:
+- `make build` — regenerates templ views and builds the binary to `bin/memories`.
+- `make run` — builds then launches the server (`./bin/memories`).
+- `make test`, `make race`, `make cover` — run the test suite with optional race detector or coverage report.
+- `make fmt`, `make vet`, `make tidy` — format, vet, and tidy dependencies.
+- `make generate` — shortcut for `go tool templ generate`.
 
-- `make build` — regenerates templ components, verifies compilation with `go build ./...`, and drops the `memories` binary in `bin/`.
-- `make run` — rebuilds via `make build` and executes `./bin/memories`.
-- `make test` / `make race` / `make cover` — unit tests with optional race detector or coverage.
-- `make fmt` — format all Go sources with `gofmt`.
-- `make vet` — static analysis via `go vet`.
-- `make tidy` — keep `go.mod` / `go.sum` tidy.
+### Working With templ
 
-### Regenerating templ Components
+1. Edit `.templ` files in `web/components` or `web/pages`.
+2. Run `go tool templ generate` (or `make generate`) from the repo root.
+3. `gofmt` the generated `*_templ.go` files if your editor does not do it automatically.
 
-UI views live in `web/` as `.templ` files and are compiled to Go via the templ CLI:
+`components.MainLayout` defines the shared typography and monochrome styling; all pages render inside it for a consistent look.
 
-1. Edit `.templ` files (for example `web/pages/login.templ` or `web/components/layout.templ`).
-2. Run `templ generate` from the repo root (or `$HOME/go/bin/templ generate` if `templ` is not on your `PATH`).
-3. Run `gofmt` on the generated `*_templ.go` files if your editor does not do this automatically (`gofmt -w web/**/*.go`).
+### Running Locally
 
-The main layout component lives in `web/components/layout.templ` and exposes `components.MainLayout`, which wraps page content and injects shared markup such as the document `<head>`. Pages compose it using templ's `@components.MainLayout("Title") { ... }` syntax.
+```bash
+export ADMIN_PASSWORD=change-me
+make run
+```
 
-### Authentication Flow
-
-Admin authentication posts to `/login` and, on success, redirects to `/albums`. The handler sets an admin cookie valid for 14 days. The `/albums` route is currently a stub: it returns `501 Not Implemented` until the listing view is completed.
+Visit `http://localhost:8080/login`, authenticate with the password above, and start managing albums from `/albums`. Public viewers are available at `/a/<slug>`.
 
 ## Project Structure
 
 - `cmd/memories/` — main binary entry point.
-- `internal/` — application code; HTTP handlers live under `internal/http/handlers`, middleware under `internal/http/middleware`, etc.
-- `web/` — templ templates and generated components.
-- `public/` — static assets served directly (currently empty).
-- `data/` — placeholder for persistent storage or fixtures.
+- `internal/config` — environment-driven config loader.
+- `internal/http/handlers` — Gin handlers for albums, auth, uploads, and the public viewer.
+- `internal/storage` — SQLite implementations for albums and photos (auto-creates tables).
+- `web/components`, `web/pages` — templ components plus generated Go.
+- `public/uploads` — uploaded photo assets served directly.
+- `data/` — default location for the SQLite database file.
 
-Put reusable libraries in `pkg/`, seed data or migrations in `assets/`, and test fixtures in `testdata/` alongside the package that consumes them.
+Reusable packages belong in `pkg/`, shared assets in `assets/`, and fixtures in `testdata/` near their consumers.
 
 ## Recommended Checks
 
-- `make fmt` to ensure Go sources are formatted.
-- `make vet` and `make test` (or `make race`) before committing.
-- `go test -cover ./...` to validate coverage goals for new packages.
+- `make fmt`
+- `make vet`
+- `make test` (or `make race`)
+- `go test -cover ./...`
 
 ## Contributing Notes
 
 - Document exported Go identifiers with GoDoc comments.
-- Prefer table-driven tests with descriptive `Test<Name><Behavior>` names.
-- Add new templ components alongside their generated outputs and keep them in sync via `templ generate`.
-- Capture any database migrations, seed files, or static assets under `assets/` and document their purpose with a short README in that subdirectory.
+- Prefer table-driven tests (`Test<Thing><Behavior>`).
+- Regenerate templ output and include it in commits whenever templates change.
+- Highlight schema changes, seed data updates, or new assets in PR descriptions so deployers can prepare.
