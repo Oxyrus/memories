@@ -1,0 +1,21 @@
+package pages
+
+import "github.com/Oxyrus/memories/web/components"
+
+templ Login(next string) {
+    @components.MainLayout("Login") {
+        <section>
+            <h1>Welcome back</h1>
+            <p>Enter the admin passcode to manage your photo memories.</p>
+        </section>
+        <form method="post" action="/login">
+            <input type="hidden" name="next" value={next} />
+            <label>
+                Passcode
+                <input type="password" name="passcode" autocomplete="current-password" required />
+            </label>
+            <button type="submit">Sign in</button>
+            <p class="form-footnote">Forgot the passcode? Ask the site owner to reset it via the server configuration.</p>
+        </form>
+    }
+}

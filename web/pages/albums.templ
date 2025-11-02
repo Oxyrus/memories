@@ -1,0 +1,35 @@
+package pages
+
+import "github.com/Oxyrus/memories/web/components"
+
+templ AlbumsList() {
+    @components.MainLayout("Albums") {
+        <header>
+            <div>
+                <h1>Your albums</h1>
+                <p>Mocked list while we hook up the real data layer.</p>
+            </div>
+            <a class="primary-action" href="/albums/new">New album</a>
+        </header>
+        <ul class="album-grid">
+            <li>
+                <article>
+                    <div class="album-title">Summer Roadtrip</div>
+                    <div class="album-meta">28 photos · Updated 2 days ago</div>
+                </article>
+            </li>
+            <li>
+                <article>
+                    <div class="album-title">Grandma&apos;s 80th</div>
+                    <div class="album-meta">15 photos · Updated 1 week ago</div>
+                </article>
+            </li>
+            <li>
+                <article>
+                    <div class="album-title">City Lights</div>
+                    <div class="album-meta">42 photos · Updated 3 weeks ago</div>
+                </article>
+            </li>
+        </ul>
+    }
+}
