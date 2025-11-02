@@ -1,10 +1,13 @@
 package handlers
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"image"
+	"image/jpeg"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,7 +18,9 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/disintegration/imaging"
 	"github.com/gin-gonic/gin"
+	"github.com/rwcarlsen/goexif/exif"
 
 	"github.com/Oxyrus/memories/internal/http/render"
 	"github.com/Oxyrus/memories/internal/storage"
@@ -383,6 +388,10 @@ func (h *AlbumHandler) UploadPhoto(c *gin.Context) {
 		return
 	}
 
+	if err := sanitizePhoto(diskPath); err != nil {
+		h.logger.Warn("failed to sanitize photo metadata", "path", diskPath, "error", err)
+	}
+
 	caption := strings.TrimSpace(c.PostForm("caption"))
 	takenAtValue := strings.TrimSpace(c.PostForm("taken_at"))
 	var takenAt *time.Time
@@ -489,6 +498,88 @@ func formatTimestamp(t time.Time) string {
 		return ""
 	}
 	return t.UTC().Format("Jan 2, 2006 15:04 MST")
+}
+
+func sanitizePhoto(path string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+
+	if !isJPEG(data) {
+		return nil
+	}
+
+	img, err := jpeg.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil
+	}
+
+	orientation := readOrientation(data)
+	img = normalizeOrientation(img, orientation)
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), "photo-*")
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmp.Name())
+	}()
+
+	if err := jpeg.Encode(tmp, img, &jpeg.Options{Quality: 95}); err != nil {
+		return err
+	}
+
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmp.Name(), path)
+}
+
+func isJPEG(data []byte) bool {
+	return len(data) > 2 && data[0] == 0xff && data[1] == 0xd8
+}
+
+func readOrientation(data []byte) int {
+	ex, err := exif.Decode(bytes.NewReader(data))
+	if err != nil {
+		return 1
+	}
+
+	tag, err := ex.Get(exif.Orientation)
+	if err != nil {
+		return 1
+	}
+
+	val, err := tag.Int(0)
+	if err != nil {
+		return 1
+	}
+
+	return val
+}
+
+func normalizeOrientation(img image.Image, orientation int) image.Image {
+	switch orientation {
+	case 2:
+		return imaging.FlipH(img)
+	case 3:
+		return imaging.Rotate180(img)
+	case 4:
+		return imaging.FlipV(img)
+	case 5:
+		return imaging.FlipH(imaging.Rotate90(img))
+	case 6:
+		return imaging.Rotate90(img)
+	case 7:
+		return imaging.FlipV(imaging.Rotate90(img))
+	case 8:
+		return imaging.Rotate270(img)
+	default:
+		return img
+	}
 }
 
 func generatePhotoFilename(original string) (string, error) {
