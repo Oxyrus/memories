@@ -64,14 +64,14 @@ func AlbumPublicView(data PublicAlbumViewData) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			} else {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"public-album__stage\"><figure class=\"album-hero\" data-hero><img data-hero-image src=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"public-album__stage\"><figure class=\"album-hero\" data-hero><img data-hero-image data-fullscreen-trigger src=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hero.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 24, Col: 46}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 24, Col: 70}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -84,7 +84,7 @@ func AlbumPublicView(data PublicAlbumViewData) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(heroAlt(data.Hero))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 24, Col: 73}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 24, Col: 97}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -232,56 +232,149 @@ func AlbumPublicView(data PublicAlbumViewData) templ.Component {
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" aria-label=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "\" data-index=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var14 string
-						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("View %s", displayCaption(photo)))
+						templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(idx)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 53, Col: 67}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 53, Col: 25}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"><img src=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\" aria-label=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var15 string
-						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(photo.URL)
+						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("View %s", displayCaption(photo)))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 55, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 54, Col: 67}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\" alt=\"")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "\"><img src=\"")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var16 string
-						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(heroAlt(photo))
+						templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(photo.URL)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 55, Col: 52}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 56, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" loading=\"lazy\"></button>")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "\" alt=\"")
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						var templ_7745c5c3_Var17 string
+						templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(heroAlt(photo))
+						if templ_7745c5c3_Err != nil {
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 56, Col: 52}
+						}
+						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
+						if templ_7745c5c3_Err != nil {
+							return templ_7745c5c3_Err
+						}
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "\" loading=\"lazy\"></button>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "</div></section>")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, "</div></section>")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 24, " ")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, " <div class=\"lightbox\" data-lightbox hidden aria-hidden=\"true\"><div class=\"lightbox__backdrop\" data-lightbox-close></div><div class=\"lightbox__content\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Photo viewer\"><button type=\"button\" class=\"lightbox__close\" data-lightbox-close aria-label=\"Close photo viewer\">×</button> <button type=\"button\" class=\"lightbox__control lightbox__control--prev\" data-lightbox-prev aria-label=\"Previous photo\">‹</button> <button type=\"button\" class=\"lightbox__control lightbox__control--next\" data-lightbox-next aria-label=\"Next photo\">›</button><div class=\"lightbox__figure\"><img data-lightbox-image src=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var18 string
+				templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hero.URL)
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 70, Col: 51}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "\" alt=\"")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var19 string
+				templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(heroAlt(data.Hero))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 70, Col: 78}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "\"><div class=\"lightbox__details\"><h2 data-lightbox-caption>")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var20 string
+				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(displayCaption(data.Hero))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 72, Col: 61}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "</h2><div class=\"lightbox__meta\"><span data-lightbox-index>Photo 1 of ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				var templ_7745c5c3_Var21 string
+				templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(len(data.Photos))
+				if templ_7745c5c3_Err != nil {
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 74, Col: 64}
+				}
+				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</span> ")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+				if data.Hero.TakenAt != "" {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<span data-lightbox-meta>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					var templ_7745c5c3_Var22 string
+					templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(data.Hero.TakenAt)
+					if templ_7745c5c3_Err != nil {
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `web/pages/albums_public.templ`, Line: 76, Col: 54}
+					}
+					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				} else {
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<span data-lightbox-meta hidden></span>")
+					if templ_7745c5c3_Err != nil {
+						return templ_7745c5c3_Err
+					}
+				}
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div></div></div></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -292,8 +385,78 @@ document.addEventListener("DOMContentLoaded", function () {
   const heroMeta = document.querySelector("[data-hero-meta]");
   const heroIndex = document.querySelector("[data-hero-index]");
   const thumbButtons = document.querySelectorAll("[data-thumb]");
+  const lightbox = document.querySelector("[data-lightbox]");
+  const lightboxImage = document.querySelector("[data-lightbox-image]");
+  const lightboxCaption = document.querySelector("[data-lightbox-caption]");
+  const lightboxMeta = document.querySelector("[data-lightbox-meta]");
+  const lightboxIndex = document.querySelector("[data-lightbox-index]");
+  const closeButtons = document.querySelectorAll("[data-lightbox-close]");
+  const nextButton = document.querySelector("[data-lightbox-next]");
+  const prevButton = document.querySelector("[data-lightbox-prev]");
+  const fullscreenTrigger = document.querySelector("[data-fullscreen-trigger]");
+  let currentIndex = 0;
+
   if (!heroImage || thumbButtons.length === 0) {
     return;
+  }
+
+  const photoData = Array.from(thumbButtons).map(function (button, idx) {
+    return {
+      src: button.getAttribute("data-photo-src"),
+      alt: button.getAttribute("data-photo-alt") || "",
+      caption: button.getAttribute("data-caption") || button.getAttribute("data-fallback") || "",
+      meta: button.getAttribute("data-meta") || "",
+      position: button.getAttribute("data-position") || "",
+      index: idx
+    };
+  });
+
+  function setActivePhoto(index) {
+    const data = photoData[index];
+    if (!data) {
+      return;
+    }
+    currentIndex = index;
+    thumbButtons.forEach(function (btn) {
+      btn.classList.remove("is-active");
+    });
+    const activeButton = thumbButtons[index];
+    if (activeButton) {
+      activeButton.classList.add("is-active");
+    }
+    heroImage.setAttribute("src", data.src);
+    heroImage.setAttribute("alt", data.alt);
+    heroCaption.textContent = data.caption;
+    if (data.position !== "") {
+      heroIndex.textContent = data.position;
+    }
+    if (data.meta !== "") {
+      heroMeta.textContent = data.meta;
+      heroMeta.removeAttribute("hidden");
+    } else {
+      heroMeta.textContent = "";
+      heroMeta.setAttribute("hidden", "");
+    }
+
+    if (lightboxImage) {
+      lightboxImage.setAttribute("src", data.src);
+      lightboxImage.setAttribute("alt", data.alt);
+    }
+    if (lightboxCaption) {
+      lightboxCaption.textContent = data.caption;
+    }
+    if (lightboxIndex && data.position !== "") {
+      lightboxIndex.textContent = data.position;
+    }
+    if (lightboxMeta) {
+      if (data.meta !== "") {
+        lightboxMeta.textContent = data.meta;
+        lightboxMeta.removeAttribute("hidden");
+      } else {
+        lightboxMeta.textContent = "";
+        lightboxMeta.setAttribute("hidden", "");
+      }
+    }
   }
 
   thumbButtons.forEach(function (button, index) {
@@ -301,39 +464,77 @@ document.addEventListener("DOMContentLoaded", function () {
       button.classList.add("is-active");
     }
     button.addEventListener("click", function () {
-      thumbButtons.forEach(function (btn) {
-        btn.classList.remove("is-active");
-      });
-      button.classList.add("is-active");
-
-      const photoSrc = button.getAttribute("data-photo-src");
-      const photoAlt = button.getAttribute("data-photo-alt") || "";
-      const caption = button.getAttribute("data-caption") || button.getAttribute("data-fallback") || "";
-      const meta = button.getAttribute("data-meta") || "";
-      const position = button.getAttribute("data-position") || "";
-
-      heroImage.setAttribute("src", photoSrc);
-      heroImage.setAttribute("alt", photoAlt);
-      heroCaption.textContent = caption;
-      if (position !== "") {
-        heroIndex.textContent = position;
-      }
-      if (meta !== "") {
-        heroMeta.textContent = meta;
-        heroMeta.removeAttribute("hidden");
-      } else {
-        heroMeta.textContent = "";
-        heroMeta.setAttribute("hidden", "");
-      }
+      setActivePhoto(index);
     });
   });
+
+  function openLightbox() {
+    if (!lightbox) return;
+    lightbox.removeAttribute("hidden");
+    lightbox.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    lightbox.focus();
+  }
+
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.setAttribute("hidden", "");
+    lightbox.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function showNext(delta) {
+    const total = photoData.length;
+    if (total === 0) return;
+    const nextIndex = (currentIndex + delta + total) % total;
+    setActivePhoto(nextIndex);
+  }
+
+  closeButtons.forEach(function (btn) {
+    btn.addEventListener("click", closeLightbox);
+  });
+
+  if (fullscreenTrigger) {
+    fullscreenTrigger.addEventListener("click", function () {
+      openLightbox();
+    });
+  }
+
+  if (nextButton) {
+    nextButton.addEventListener("click", function () {
+      showNext(1);
+    });
+  }
+  if (prevButton) {
+    prevButton.addEventListener("click", function () {
+      showNext(-1);
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (!lightbox || lightbox.hasAttribute("hidden")) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLightbox();
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      showNext(1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      showNext(-1);
+    }
+  });
+
+  setActivePhoto(0);
 });
 </script>`).Render(ctx, templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

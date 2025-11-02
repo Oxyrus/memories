@@ -21,7 +21,7 @@ templ AlbumPublicView(data PublicAlbumViewData) {
 			} else {
 				<div class="public-album__stage">
 					<figure class="album-hero" data-hero>
-						<img data-hero-image src={ data.Hero.URL } alt={ heroAlt(data.Hero) } />
+						<img data-hero-image data-fullscreen-trigger src={ data.Hero.URL } alt={ heroAlt(data.Hero) } />
 						<figcaption class="album-hero__details">
 							<h2 data-hero-caption>{ displayCaption(data.Hero) }</h2>
 							<div class="album-hero__meta">
@@ -50,6 +50,7 @@ templ AlbumPublicView(data PublicAlbumViewData) {
 									data-fallback={ photo.Filename }
 									data-meta={ photo.TakenAt }
 									data-position={ fmt.Sprintf("Photo %d of %d", idx+1, len(data.Photos)) }
+									data-index={ idx }
 									aria-label={ fmt.Sprintf("View %s", displayCaption(photo)) }
 								>
 									<img src={ photo.URL } alt={ heroAlt(photo) } loading="lazy" />
@@ -59,6 +60,29 @@ templ AlbumPublicView(data PublicAlbumViewData) {
 					</section>
 				}
 
+				<div class="lightbox" data-lightbox hidden aria-hidden="true">
+					<div class="lightbox__backdrop" data-lightbox-close></div>
+					<div class="lightbox__content" role="dialog" aria-modal="true" aria-label="Photo viewer">
+						<button type="button" class="lightbox__close" data-lightbox-close aria-label="Close photo viewer">×</button>
+						<button type="button" class="lightbox__control lightbox__control--prev" data-lightbox-prev aria-label="Previous photo">‹</button>
+						<button type="button" class="lightbox__control lightbox__control--next" data-lightbox-next aria-label="Next photo">›</button>
+						<div class="lightbox__figure">
+							<img data-lightbox-image src={ data.Hero.URL } alt={ heroAlt(data.Hero) } />
+							<div class="lightbox__details">
+								<h2 data-lightbox-caption>{ displayCaption(data.Hero) }</h2>
+								<div class="lightbox__meta">
+									<span data-lightbox-index>Photo 1 of { len(data.Photos) }</span>
+									if (data.Hero.TakenAt != "") {
+										<span data-lightbox-meta>{ data.Hero.TakenAt }</span>
+									} else {
+										<span data-lightbox-meta hidden></span>
+									}
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
 				@templ.Raw(`<script>
 document.addEventListener("DOMContentLoaded", function () {
   const heroImage = document.querySelector("[data-hero-image]");
@@ -66,8 +90,78 @@ document.addEventListener("DOMContentLoaded", function () {
   const heroMeta = document.querySelector("[data-hero-meta]");
   const heroIndex = document.querySelector("[data-hero-index]");
   const thumbButtons = document.querySelectorAll("[data-thumb]");
+  const lightbox = document.querySelector("[data-lightbox]");
+  const lightboxImage = document.querySelector("[data-lightbox-image]");
+  const lightboxCaption = document.querySelector("[data-lightbox-caption]");
+  const lightboxMeta = document.querySelector("[data-lightbox-meta]");
+  const lightboxIndex = document.querySelector("[data-lightbox-index]");
+  const closeButtons = document.querySelectorAll("[data-lightbox-close]");
+  const nextButton = document.querySelector("[data-lightbox-next]");
+  const prevButton = document.querySelector("[data-lightbox-prev]");
+  const fullscreenTrigger = document.querySelector("[data-fullscreen-trigger]");
+  let currentIndex = 0;
+
   if (!heroImage || thumbButtons.length === 0) {
     return;
+  }
+
+  const photoData = Array.from(thumbButtons).map(function (button, idx) {
+    return {
+      src: button.getAttribute("data-photo-src"),
+      alt: button.getAttribute("data-photo-alt") || "",
+      caption: button.getAttribute("data-caption") || button.getAttribute("data-fallback") || "",
+      meta: button.getAttribute("data-meta") || "",
+      position: button.getAttribute("data-position") || "",
+      index: idx
+    };
+  });
+
+  function setActivePhoto(index) {
+    const data = photoData[index];
+    if (!data) {
+      return;
+    }
+    currentIndex = index;
+    thumbButtons.forEach(function (btn) {
+      btn.classList.remove("is-active");
+    });
+    const activeButton = thumbButtons[index];
+    if (activeButton) {
+      activeButton.classList.add("is-active");
+    }
+    heroImage.setAttribute("src", data.src);
+    heroImage.setAttribute("alt", data.alt);
+    heroCaption.textContent = data.caption;
+    if (data.position !== "") {
+      heroIndex.textContent = data.position;
+    }
+    if (data.meta !== "") {
+      heroMeta.textContent = data.meta;
+      heroMeta.removeAttribute("hidden");
+    } else {
+      heroMeta.textContent = "";
+      heroMeta.setAttribute("hidden", "");
+    }
+
+    if (lightboxImage) {
+      lightboxImage.setAttribute("src", data.src);
+      lightboxImage.setAttribute("alt", data.alt);
+    }
+    if (lightboxCaption) {
+      lightboxCaption.textContent = data.caption;
+    }
+    if (lightboxIndex && data.position !== "") {
+      lightboxIndex.textContent = data.position;
+    }
+    if (lightboxMeta) {
+      if (data.meta !== "") {
+        lightboxMeta.textContent = data.meta;
+        lightboxMeta.removeAttribute("hidden");
+      } else {
+        lightboxMeta.textContent = "";
+        lightboxMeta.setAttribute("hidden", "");
+      }
+    }
   }
 
   thumbButtons.forEach(function (button, index) {
@@ -75,32 +169,70 @@ document.addEventListener("DOMContentLoaded", function () {
       button.classList.add("is-active");
     }
     button.addEventListener("click", function () {
-      thumbButtons.forEach(function (btn) {
-        btn.classList.remove("is-active");
-      });
-      button.classList.add("is-active");
-
-      const photoSrc = button.getAttribute("data-photo-src");
-      const photoAlt = button.getAttribute("data-photo-alt") || "";
-      const caption = button.getAttribute("data-caption") || button.getAttribute("data-fallback") || "";
-      const meta = button.getAttribute("data-meta") || "";
-      const position = button.getAttribute("data-position") || "";
-
-      heroImage.setAttribute("src", photoSrc);
-      heroImage.setAttribute("alt", photoAlt);
-      heroCaption.textContent = caption;
-      if (position !== "") {
-        heroIndex.textContent = position;
-      }
-      if (meta !== "") {
-        heroMeta.textContent = meta;
-        heroMeta.removeAttribute("hidden");
-      } else {
-        heroMeta.textContent = "";
-        heroMeta.setAttribute("hidden", "");
-      }
+      setActivePhoto(index);
     });
   });
+
+  function openLightbox() {
+    if (!lightbox) return;
+    lightbox.removeAttribute("hidden");
+    lightbox.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    lightbox.focus();
+  }
+
+  function closeLightbox() {
+    if (!lightbox) return;
+    lightbox.setAttribute("hidden", "");
+    lightbox.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }
+
+  function showNext(delta) {
+    const total = photoData.length;
+    if (total === 0) return;
+    const nextIndex = (currentIndex + delta + total) % total;
+    setActivePhoto(nextIndex);
+  }
+
+  closeButtons.forEach(function (btn) {
+    btn.addEventListener("click", closeLightbox);
+  });
+
+  if (fullscreenTrigger) {
+    fullscreenTrigger.addEventListener("click", function () {
+      openLightbox();
+    });
+  }
+
+  if (nextButton) {
+    nextButton.addEventListener("click", function () {
+      showNext(1);
+    });
+  }
+  if (prevButton) {
+    prevButton.addEventListener("click", function () {
+      showNext(-1);
+    });
+  }
+
+  document.addEventListener("keydown", function (event) {
+    if (!lightbox || lightbox.hasAttribute("hidden")) {
+      return;
+    }
+    if (event.key === "Escape") {
+      event.preventDefault();
+      closeLightbox();
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      showNext(1);
+    } else if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      showNext(-1);
+    }
+  });
+
+  setActivePhoto(0);
 });
 </script>`)
 			}
