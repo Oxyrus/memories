@@ -2,34 +2,49 @@ package pages
 
 import "github.com/Oxyrus/memories/web/components"
 
-templ AlbumsList() {
-    @components.MainLayout("Albums") {
-        <header>
-            <div>
-                <h1>Your albums</h1>
-                <p>Mocked list while we hook up the real data layer.</p>
-            </div>
-            <a class="primary-action" href="/albums/new">New album</a>
-        </header>
-        <ul class="album-grid">
-            <li>
-                <article>
-                    <div class="album-title">Summer Roadtrip</div>
-                    <div class="album-meta">28 photos · Updated 2 days ago</div>
-                </article>
-            </li>
-            <li>
-                <article>
-                    <div class="album-title">Grandma&apos;s 80th</div>
-                    <div class="album-meta">15 photos · Updated 1 week ago</div>
-                </article>
-            </li>
-            <li>
-                <article>
-                    <div class="album-title">City Lights</div>
-                    <div class="album-meta">42 photos · Updated 3 weeks ago</div>
-                </article>
-            </li>
-        </ul>
-    }
+type AlbumListItem struct {
+	Title       string
+	Description string
+	Href        string
+	Meta        string
+}
+
+templ AlbumsList(albums []AlbumListItem) {
+	@components.MainLayout("Albums") {
+		<header>
+			<div>
+				<h1>Your albums</h1>
+				if (len(albums) == 0) {
+					<p>Create an album to start collecting your memories.</p>
+				} else {
+					<p>Browse your existing collections or add a new one.</p>
+				}
+			</div>
+			<a class="primary-action" href="/albums/new">New album</a>
+		</header>
+
+		if (len(albums) == 0) {
+			<div class="empty-state">
+				<p>You haven&apos;t added any albums yet.</p>
+			</div>
+		} else {
+			<ul class="album-grid">
+				for _, album := range albums {
+					<li>
+						<article>
+							<div class="album-title">
+								<a href={ album.Href }>{ album.Title }</a>
+							</div>
+							if (album.Description != "") {
+								<p class="album-description">{ album.Description }</p>
+							}
+							if (album.Meta != "") {
+								<div class="album-meta">{ album.Meta }</div>
+							}
+						</article>
+					</li>
+				}
+			</ul>
+		}
+	}
 }

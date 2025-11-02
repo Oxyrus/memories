@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 	"time"
@@ -52,6 +53,14 @@ func TestAlbumLifecycle(t *testing.T) {
 	}
 	if created.CreatedAt.IsZero() || created.UpdatedAt.IsZero() {
 		t.Fatalf("expected timestamps to be populated")
+	}
+
+	_, err = store.Albums().Create(ctx, storage.AlbumCreate{
+		Slug:  "summer-roadtrip",
+		Title: "Duplicate Slug",
+	})
+	if !errors.Is(err, storage.ErrConflict) {
+		t.Fatalf("expected ErrConflict on duplicate slug, got %v", err)
 	}
 
 	fetched, err := store.Albums().GetBySlug(ctx, "summer-roadtrip")

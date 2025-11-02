@@ -25,8 +25,9 @@ func New(cfg *config.Config, logger *slog.Logger, store storage.Store) *gin.Engi
 	protected.Use(middleware.RequireAdmin(cfg.AdminCookie))
 	protected.GET("/albums", albumHandler.List)
 	protected.GET("/albums/new", albumHandler.New)
-	protected.GET("/albums/:albumId/edit", albumHandler.Edit)
-	protected.GET("/a/:albumId", albumHandler.View)
+	protected.POST("/albums", albumHandler.Create)
+	protected.GET("/albums/:slug/edit", albumHandler.Edit)
+	protected.GET("/a/:slug", albumHandler.View)
 
 	r.GET("/login", authHandler.ShowLogin)
 	r.POST("/login", authHandler.SubmitLogin)

@@ -10,6 +10,10 @@ import (
 // underlying storage.
 var ErrNotFound = errors.New("storage: not found")
 
+// ErrConflict indicates that a write failed due to a conflicting state, such as
+// attempting to insert a record with a unique key that already exists.
+var ErrConflict = errors.New("storage: conflict")
+
 // Store exposes the persistence primitives required by the application. It is
 // expected to be safe for concurrent use.
 type Store interface {

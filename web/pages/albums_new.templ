@@ -1,0 +1,42 @@
+package pages
+
+import "github.com/Oxyrus/memories/web/components"
+
+type AlbumForm struct {
+	Title       string
+	Slug        string
+	Description string
+	Errors      map[string]string
+}
+
+templ AlbumNew(form AlbumForm) {
+	@components.MainLayout("New Album") {
+		<header>
+			<h1>Create a new album</h1>
+			<p>Collect your photos under a memorable title. You can upload pictures after saving the basics.</p>
+		</header>
+		<form method="post" action="/albums">
+			<label>
+				Title
+				<input type="text" name="title" value={ form.Title } autofocus required />
+				if (form.Errors["title"] != "") {
+					<p class="form-error">{ form.Errors["title"] }</p>
+				}
+			</label>
+			<label>
+				Slug
+				<input type="text" name="slug" value={ form.Slug } placeholder="auto-generated-from-title" />
+				<p class="form-help">Leave blank to generate a slug from the title. Only letters, numbers, and hyphens are allowed.</p>
+				if (form.Errors["slug"] != "") {
+					<p class="form-error">{ form.Errors["slug"] }</p>
+				}
+			</label>
+			<label>
+				Description
+				<textarea name="description" rows="3">{ form.Description }</textarea>
+			</label>
+			<button type="submit">Create album</button>
+			<a class="button-secondary" href="/albums">Cancel</a>
+		</form>
+	}
+}

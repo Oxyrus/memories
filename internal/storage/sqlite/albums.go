@@ -3,9 +3,13 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+
+	sqlitedriver "modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"github.com/Oxyrus/memories/internal/storage"
 )
@@ -26,6 +30,9 @@ func (r *albumRepository) Create(ctx context.Context, input storage.AlbumCreate)
 		now,
 	)
 	if err != nil {
+		if isUniqueConstraint(err) {
+			return storage.Album{}, storage.ErrConflict
+		}
 		return storage.Album{}, fmt.Errorf("sqlite: create album: %w", err)
 	}
 
@@ -204,6 +211,17 @@ func (r *albumRepository) ClearCoverPhoto(ctx context.Context, albumID int64) er
 	}
 
 	return nil
+}
+
+func isUniqueConstraint(err error) bool {
+	var sqliteErr *sqlitedriver.Error
+	if errors.As(err, &sqliteErr) {
+		switch sqliteErr.Code() {
+		case sqlite3.SQLITE_CONSTRAINT, sqlite3.SQLITE_CONSTRAINT_UNIQUE:
+			return true
+		}
+	}
+	return false
 }
 
 type albumScanner interface {
