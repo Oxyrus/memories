@@ -3,31 +3,41 @@ package pages
 import "github.com/Oxyrus/memories/web/components"
 
 type AlbumForm struct {
-	Title       string
-	Slug        string
-	Description string
-	Errors      map[string]string
+	Heading      string
+	Intro        string
+	Action       string
+	Title        string
+	Slug         string
+	Description  string
+	Errors       map[string]string
+	SubmitLabel  string
+	SlugEditable bool
 }
 
-templ AlbumNew(form AlbumForm) {
-	@components.MainLayout("New Album") {
+templ albumFormPage(form AlbumForm) {
+	@components.MainLayout(form.Heading) {
 		<header>
-			<h1>Create a new album</h1>
-			<p>Collect your photos under a memorable title. You can upload pictures after saving the basics.</p>
+			<h1>{ form.Heading }</h1>
+			<p>{ form.Intro }</p>
 		</header>
-		<form method="post" action="/albums">
+		<form method="post" action={ form.Action }>
 			<label>
 				Title
 				<input type="text" name="title" value={ form.Title } autofocus required />
-				if (form.Errors["title"] != "") {
+				if (form.Errors != nil && form.Errors["title"] != "") {
 					<p class="form-error">{ form.Errors["title"] }</p>
 				}
 			</label>
 			<label>
 				Slug
-				<input type="text" name="slug" value={ form.Slug } placeholder="auto-generated-from-title" />
-				<p class="form-help">Leave blank to generate a slug from the title. Only letters, numbers, and hyphens are allowed.</p>
-				if (form.Errors["slug"] != "") {
+				if form.SlugEditable {
+					<input type="text" name="slug" value={ form.Slug } placeholder="auto-generated-from-title" />
+					<p class="form-help">Leave blank to generate a slug from the title. Only letters, numbers, and hyphens are allowed.</p>
+				} else {
+					<input type="text" name="slug" value={ form.Slug } readonly />
+					<p class="form-help">Slug cannot be changed.</p>
+				}
+				if (form.Errors != nil && form.Errors["slug"] != "") {
 					<p class="form-error">{ form.Errors["slug"] }</p>
 				}
 			</label>
@@ -35,8 +45,16 @@ templ AlbumNew(form AlbumForm) {
 				Description
 				<textarea name="description" rows="3">{ form.Description }</textarea>
 			</label>
-			<button type="submit">Create album</button>
+			<button type="submit">{ form.SubmitLabel }</button>
 			<a class="button-secondary" href="/albums">Cancel</a>
 		</form>
 	}
+}
+
+templ AlbumNew(form AlbumForm) {
+	@albumFormPage(form)
+}
+
+templ AlbumEdit(form AlbumForm) {
+	@albumFormPage(form)
 }

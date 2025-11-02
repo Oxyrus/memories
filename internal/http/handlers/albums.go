@@ -51,27 +51,92 @@ func (h *AlbumHandler) List(c *gin.Context) {
 
 func (h *AlbumHandler) New(c *gin.Context) {
 	form := pages.AlbumForm{
-		Errors: map[string]string{},
+		Heading:      "Create a new album",
+		Intro:        "Collect your photos under a memorable title. You can upload pictures after saving the basics.",
+		Action:       "/albums",
+		SubmitLabel:  "Create album",
+		SlugEditable: true,
+		Errors:       map[string]string{},
 	}
 	render.HTML(c, http.StatusOK, pages.AlbumNew(form))
 }
 
 func (h *AlbumHandler) Edit(c *gin.Context) {
-	c.String(http.StatusNotImplemented, "/albums/:slug/edit not implemented")
+	ctx := c.Request.Context()
+	slug := strings.TrimSpace(c.Param("slug"))
+	if slug == "" {
+		c.String(http.StatusNotFound, "album not found")
+		return
+	}
+
+	album, err := h.albums.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+		h.logger.Error("failed to load album for edit", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album")
+		return
+	}
+
+	form := pages.AlbumForm{
+		Heading:      "Edit album",
+		Intro:        "Update the album details below.",
+		Action:       fmt.Sprintf("/albums/%s/edit", album.Slug),
+		SubmitLabel:  "Save changes",
+		Title:        album.Title,
+		Slug:         album.Slug,
+		Description:  album.Description,
+		Errors:       map[string]string{},
+		SlugEditable: false,
+	}
+
+	render.HTML(c, http.StatusOK, pages.AlbumEdit(form))
 }
 
 func (h *AlbumHandler) View(c *gin.Context) {
-	c.String(http.StatusNotImplemented, "/a/:slug not implemented")
+	ctx := c.Request.Context()
+	slug := strings.TrimSpace(c.Param("slug"))
+	if slug == "" {
+		c.String(http.StatusNotFound, "album not found")
+		return
+	}
+
+	album, err := h.albums.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+		h.logger.Error("failed to load album", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album")
+		return
+	}
+
+	data := pages.AlbumViewData{
+		Title:       album.Title,
+		Slug:        album.Slug,
+		Description: album.Description,
+		UpdatedAt:   formatTimestamp(album.UpdatedAt),
+	}
+
+	render.HTML(c, http.StatusOK, pages.AlbumView(data))
 }
 
 func (h *AlbumHandler) Create(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	form := pages.AlbumForm{
-		Title:       strings.TrimSpace(c.PostForm("title")),
-		Slug:        strings.TrimSpace(c.PostForm("slug")),
-		Description: strings.TrimSpace(c.PostForm("description")),
-		Errors:      map[string]string{},
+		Heading:      "Create a new album",
+		Intro:        "Collect your photos under a memorable title. You can upload pictures after saving the basics.",
+		Action:       "/albums",
+		SubmitLabel:  "Create album",
+		SlugEditable: true,
+		Title:        strings.TrimSpace(c.PostForm("title")),
+		Slug:         strings.TrimSpace(c.PostForm("slug")),
+		Description:  strings.TrimSpace(c.PostForm("description")),
+		Errors:       map[string]string{},
 	}
 
 	if form.Title == "" {
@@ -124,16 +189,79 @@ func (h *AlbumHandler) Create(c *gin.Context) {
 	c.Redirect(http.StatusSeeOther, "/albums")
 }
 
+func (h *AlbumHandler) Update(c *gin.Context) {
+	ctx := c.Request.Context()
+	slug := strings.TrimSpace(c.Param("slug"))
+	if slug == "" {
+		c.String(http.StatusNotFound, "album not found")
+		return
+	}
+
+	current, err := h.albums.GetBySlug(ctx, slug)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+		h.logger.Error("failed to load album for update", "slug", slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to load album")
+		return
+	}
+
+	form := pages.AlbumForm{
+		Heading:      "Edit album",
+		Intro:        "Update the album details below.",
+		Action:       fmt.Sprintf("/albums/%s/edit", current.Slug),
+		SubmitLabel:  "Save changes",
+		Title:        strings.TrimSpace(c.PostForm("title")),
+		Slug:         current.Slug,
+		Description:  strings.TrimSpace(c.PostForm("description")),
+		Errors:       map[string]string{},
+		SlugEditable: false,
+	}
+
+	if form.Title == "" {
+		form.Errors["title"] = "Title is required."
+	}
+
+	if len(form.Errors) > 0 {
+		render.HTML(c, http.StatusUnprocessableEntity, pages.AlbumEdit(form))
+		return
+	}
+
+	title := form.Title
+	description := form.Description
+	updateInput := storage.AlbumUpdate{
+		Title:       &title,
+		Description: &description,
+	}
+
+	updated, err := h.albums.Update(ctx, current.ID, updateInput)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			c.String(http.StatusNotFound, "album not found")
+			return
+		}
+
+		h.logger.Error("failed to update album", "albumID", current.ID, "slug", current.Slug, "error", err)
+		c.String(http.StatusInternalServerError, "failed to update album")
+		return
+	}
+
+	h.logger.Info("album updated", "albumID", updated.ID, "slug", updated.Slug)
+	c.Redirect(http.StatusSeeOther, fmt.Sprintf("/albums/%s", updated.Slug))
+}
+
 func toAlbumListItem(album storage.Album) pages.AlbumListItem {
 	meta := ""
-	if !album.UpdatedAt.IsZero() {
-		meta = fmt.Sprintf("Updated %s", album.UpdatedAt.UTC().Format(time.RFC1123))
+	if ts := formatTimestamp(album.UpdatedAt); ts != "" {
+		meta = fmt.Sprintf("Updated %s", ts)
 	}
 
 	return pages.AlbumListItem{
 		Title:       album.Title,
 		Description: album.Description,
-		Href:        fmt.Sprintf("/a/%s", album.Slug),
+		Href:        fmt.Sprintf("/albums/%s", album.Slug),
 		Meta:        meta,
 	}
 }
@@ -173,4 +301,11 @@ func slugify(value string) string {
 
 	result := strings.Trim(b.String(), "-")
 	return result
+}
+
+func formatTimestamp(t time.Time) string {
+	if t.IsZero() {
+		return ""
+	}
+	return t.UTC().Format("Jan 2, 2006 15:04 MST")
 }

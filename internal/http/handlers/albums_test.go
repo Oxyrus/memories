@@ -26,10 +26,7 @@ func TestAlbumHandlerListSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
 
-	req, err := http.NewRequest(http.MethodGet, "/albums", nil)
-	if err != nil {
-		t.Fatalf("create request: %v", err)
-	}
+	req := httptest.NewRequest(http.MethodGet, "/albums", nil)
 	ctx.Request = req
 
 	albums := &stubAlbums{
@@ -56,7 +53,7 @@ func TestAlbumHandlerListSuccess(t *testing.T) {
 	if !strings.Contains(body, "Summer Roadtrip") {
 		t.Fatalf("response body missing album title: %s", body)
 	}
-	if !strings.Contains(body, "/a/summer-roadtrip") {
+	if !strings.Contains(body, "/albums/summer-roadtrip") {
 		t.Fatalf("response body missing album link: %s", body)
 	}
 }
@@ -65,18 +62,12 @@ func TestAlbumHandlerListError(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
 
-	req, err := http.NewRequest(http.MethodGet, "/albums", nil)
-	if err != nil {
-		t.Fatalf("create request: %v", err)
-	}
+	req := httptest.NewRequest(http.MethodGet, "/albums", nil)
 	ctx.Request = req
 
-	albums := &stubAlbums{
-		listErr: errors.New("boom"),
-	}
+	albums := &stubAlbums{listErr: errors.New("boom")}
 
 	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
-
 	handler.List(ctx)
 
 	if rec.Code != http.StatusInternalServerError {
@@ -91,10 +82,7 @@ func TestAlbumHandlerNew(t *testing.T) {
 	rec := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(rec)
 
-	req, err := http.NewRequest(http.MethodGet, "/albums/new", nil)
-	if err != nil {
-		t.Fatalf("create request: %v", err)
-	}
+	req := httptest.NewRequest(http.MethodGet, "/albums/new", nil)
 	ctx.Request = req
 
 	handler := handlers.NewAlbumHandler(newTestLogger(), &stubAlbums{})
@@ -131,11 +119,10 @@ func TestAlbumHandlerCreateSuccess(t *testing.T) {
 
 	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
 	handler.Create(ctx)
-
 	ctx.Writer.WriteHeaderNow()
 
 	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("expected redirect status, got %d (location=%q body=%q, createCalled=%v)", rec.Code, rec.Header().Get("Location"), rec.Body.String(), albums.createCalled)
+		t.Fatalf("expected redirect status, got %d", rec.Code)
 	}
 	if location := rec.Header().Get("Location"); location != "/albums" {
 		t.Fatalf("expected redirect to /albums, got %q", location)
@@ -191,9 +178,7 @@ func TestAlbumHandlerCreateConflict(t *testing.T) {
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	ctx.Request = req
 
-	albums := &stubAlbums{
-		createErr: storage.ErrConflict,
-	}
+	albums := &stubAlbums{createErr: storage.ErrConflict}
 
 	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
 	handler.Create(ctx)
@@ -210,13 +195,300 @@ func TestAlbumHandlerCreateConflict(t *testing.T) {
 	}
 }
 
+func TestAlbumHandlerViewSuccess(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/summer-roadtrip", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:          1,
+				Slug:        "summer-roadtrip",
+				Title:       "Summer Roadtrip",
+				Description: "Sunset drives along the coast.",
+				UpdatedAt:   time.Date(2025, 2, 15, 10, 30, 0, 0, time.UTC),
+			},
+		},
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.View(ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Summer Roadtrip") {
+		t.Fatalf("expected title in body, got %s", body)
+	}
+	if !strings.Contains(body, "/albums/summer-roadtrip/edit") {
+		t.Fatalf("expected edit link in body, got %s", body)
+	}
+}
+
+func TestAlbumHandlerViewNotFound(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/missing", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "missing"}}
+
+	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.View(ctx)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerEditSuccess(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/summer-roadtrip/edit", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:          1,
+				Slug:        "summer-roadtrip",
+				Title:       "Summer Roadtrip",
+				Description: "Sunset drives along the coast.",
+			},
+		},
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Edit(ctx)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, `form method="post" action="/albums/summer-roadtrip/edit"`) {
+		t.Fatalf("expected edit form action, got %s", body)
+	}
+	if !strings.Contains(body, `value="Summer Roadtrip"`) {
+		t.Fatalf("expected title value in form, got %s", body)
+	}
+}
+
+func TestAlbumHandlerEditNotFound(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	req := httptest.NewRequest(http.MethodGet, "/albums/missing/edit", nil)
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "missing"}}
+
+	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Edit(ctx)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerUpdateSuccess(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	form := make(url.Values)
+	form.Set("title", "Updated Title")
+	form.Set("description", "Updated description")
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/summer-roadtrip/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:          1,
+				Slug:        "summer-roadtrip",
+				Title:       "Summer Roadtrip",
+				Description: "Sunset drives along the coast.",
+			},
+		},
+		updateResp: storage.Album{
+			ID:    1,
+			Slug:  "summer-roadtrip",
+			Title: "Updated Title",
+		},
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Update(ctx)
+	ctx.Writer.WriteHeaderNow()
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected redirect status, got %d", rec.Code)
+	}
+	if location := rec.Header().Get("Location"); location != "/albums/summer-roadtrip" {
+		t.Fatalf("expected redirect to /albums/summer-roadtrip, got %q", location)
+	}
+	if !albums.updateCalled {
+		t.Fatalf("expected Update to be called")
+	}
+	if albums.lastUpdateID != 1 {
+		t.Fatalf("expected update ID 1, got %d", albums.lastUpdateID)
+	}
+	if albums.lastUpdateTitle != "Updated Title" {
+		t.Fatalf("expected update title 'Updated Title', got %q", albums.lastUpdateTitle)
+	}
+}
+
+func TestAlbumHandlerUpdateValidationError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	form := make(url.Values)
+	form.Set("title", "")
+	form.Set("description", "Updated description")
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/summer-roadtrip/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:   1,
+				Slug: "summer-roadtrip",
+			},
+		},
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Update(ctx)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected status 422, got %d", rec.Code)
+	}
+	if albums.updateCalled {
+		t.Fatalf("Update should not be called on validation error")
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "Title is required.") {
+		t.Fatalf("expected title error, got %s", body)
+	}
+}
+
+func TestAlbumHandlerUpdateLookupNotFound(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	form := make(url.Values)
+	form.Set("title", "Updated Title")
+	form.Set("description", "Updated description")
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/missing/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "missing"}}
+
+	albums := &stubAlbums{getBySlugErr: storage.ErrNotFound}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Update(ctx)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerUpdateMissingAfterLookup(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	form := make(url.Values)
+	form.Set("title", "Updated Title")
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/summer-roadtrip/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:   1,
+				Slug: "summer-roadtrip",
+			},
+		},
+		updateErr: storage.ErrNotFound,
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Update(ctx)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected status 404, got %d", rec.Code)
+	}
+}
+
+func TestAlbumHandlerUpdateError(t *testing.T) {
+	rec := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(rec)
+
+	form := make(url.Values)
+	form.Set("title", "Updated Title")
+
+	req := httptest.NewRequest(http.MethodPost, "/albums/summer-roadtrip/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	ctx.Request = req
+	ctx.Params = gin.Params{{Key: "slug", Value: "summer-roadtrip"}}
+
+	albums := &stubAlbums{
+		getBySlug: map[string]storage.Album{
+			"summer-roadtrip": {
+				ID:   1,
+				Slug: "summer-roadtrip",
+			},
+		},
+		updateErr: errors.New("boom"),
+	}
+
+	handler := handlers.NewAlbumHandler(newTestLogger(), albums)
+	handler.Update(ctx)
+
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("expected status 500, got %d", rec.Code)
+	}
+	if !albums.updateCalled {
+		t.Fatalf("expected Update to be called")
+	}
+}
+
 type stubAlbums struct {
-	list         []storage.Album
-	listErr      error
-	createResp   storage.Album
-	createErr    error
-	createCalled bool
-	lastCreate   storage.AlbumCreate
+	list            []storage.Album
+	listErr         error
+	getBySlug       map[string]storage.Album
+	getBySlugErr    error
+	createResp      storage.Album
+	createErr       error
+	createCalled    bool
+	lastCreate      storage.AlbumCreate
+	updateResp      storage.Album
+	updateErr       error
+	updateCalled    bool
+	lastUpdateID    int64
+	lastUpdate      storage.AlbumUpdate
+	lastUpdateTitle string
+	lastUpdateDesc  string
 }
 
 func (s *stubAlbums) Create(_ context.Context, input storage.AlbumCreate) (storage.Album, error) {
@@ -232,16 +504,39 @@ func (s *stubAlbums) GetByID(context.Context, int64) (storage.Album, error) {
 	panic("unexpected call to GetByID")
 }
 
-func (s *stubAlbums) GetBySlug(context.Context, string) (storage.Album, error) {
-	panic("unexpected call to GetBySlug")
+func (s *stubAlbums) GetBySlug(_ context.Context, slug string) (storage.Album, error) {
+	if s.getBySlugErr != nil {
+		return storage.Album{}, s.getBySlugErr
+	}
+	if s.getBySlug != nil {
+		if album, ok := s.getBySlug[slug]; ok {
+			return album, nil
+		}
+	}
+	return storage.Album{}, storage.ErrNotFound
 }
 
 func (s *stubAlbums) List(context.Context) ([]storage.Album, error) {
 	return s.list, s.listErr
 }
 
-func (s *stubAlbums) Update(context.Context, int64, storage.AlbumUpdate) (storage.Album, error) {
-	panic("unexpected call to Update")
+func (s *stubAlbums) Update(_ context.Context, id int64, input storage.AlbumUpdate) (storage.Album, error) {
+	s.updateCalled = true
+	s.lastUpdateID = id
+	s.lastUpdate = input
+	if input.Title != nil {
+		s.lastUpdateTitle = *input.Title
+	}
+	if input.Description != nil {
+		s.lastUpdateDesc = *input.Description
+	}
+	if s.updateErr != nil {
+		return storage.Album{}, s.updateErr
+	}
+	if s.updateResp.ID == 0 {
+		s.updateResp.ID = id
+	}
+	return s.updateResp, nil
 }
 
 func (s *stubAlbums) Delete(context.Context, int64) error {

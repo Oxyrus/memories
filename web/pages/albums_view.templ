@@ -1,0 +1,33 @@
+package pages
+
+import "github.com/Oxyrus/memories/web/components"
+
+type AlbumViewData struct {
+	Title       string
+	Slug        string
+	Description string
+	UpdatedAt   string
+}
+
+templ AlbumView(data AlbumViewData) {
+	@components.MainLayout(data.Title) {
+		<header>
+			<div>
+				<h1>{ data.Title }</h1>
+				if (data.UpdatedAt != "") {
+					<p class="album-meta">Updated { data.UpdatedAt }</p>
+				}
+			</div>
+			<a class="primary-action" href={ "/albums/" + data.Slug + "/edit" }>Edit album</a>
+		</header>
+		if (data.Description != "") {
+			<p>{ data.Description }</p>
+		} else {
+			<p class="empty-state">No description yet.</p>
+		}
+		<section>
+			<h2>Photos</h2>
+			<p class="empty-state">Photo management is coming soon.</p>
+		</section>
+	}
+}
